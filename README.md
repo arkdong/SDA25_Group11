@@ -4,7 +4,7 @@ data/		raw data<br/>
 results/	figures and tables<br/>
 code/		python code used to produce the figures/models
 
-Dataset and helper functions
+## Dataset and helper functions
 #### Bitcoin tweets - 16M tweets
 - Scrapped from twitters from 2016-01-01 to 2019-03-29, Collecting Tweets containing Bitcoin or BTC
 - The columns contain: user, fullname, tweet-id,timestamp, url, likes,replies,retweets, text

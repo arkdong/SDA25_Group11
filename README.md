@@ -4,11 +4,11 @@ data/		raw data<br/>
 results/	figures and tables<br/>
 code/		python code used to produce the figures/models
 
-Dataset and helper functions
+## Dataset and helper functions
 #### Bitcoin tweets - 16M tweets
 - Scrapped from twitters from 2016-01-01 to 2019-03-29, Collecting Tweets containing Bitcoin or BTC
 - The columns contain: user, fullname, tweet-id,timestamp, url, likes,replies,retweets, text
-- (Link to dataset)[https://www.kaggle.com/datasets/alaix14/bitcoin-tweets-20160101-to-20190329/data]
+- [Link to dataset](https://www.kaggle.com/datasets/alaix14/bitcoin-tweets-20160101-to-20190329/data)
 - Helper function to load dataset:
 ```python
 def load_16M_tweet(columns, csv_path):
@@ -29,7 +29,7 @@ def load_16M_tweet(columns, csv_path):
 #### Bitcoin tweets - Market Sentiment
 - Scrapped from twitters from 2016-01-01 to 2019-03-29, Collecting Tweets containing Bitcoin or BTC with sentiment in positive or negative
 - The columns contain: date, text, sentiment (all lowercase)
-- (Link to dataset)[https://www.kaggle.com/datasets/gauravduttakiit/bitcoin-tweets-16m-tweets-with-sentiment-tagged/data]
+- [Link to dataset](https://www.kaggle.com/datasets/gauravduttakiit/bitcoin-tweets-16m-tweets-with-sentiment-tagged/data)
 - Helper function to load dataset:
 ```python
 def load_tweet_with_sentiment(columns, csv_path):
@@ -50,7 +50,7 @@ def load_tweet_with_sentiment(columns, csv_path):
 #### Reddit Comments Containing "Bitcoin" 2009 to 2019
 - 4M+ Comments from Reddit that contain the word "bitcoin" from 2009 to 2019 collected from Google BigQuery.
 - The columns contain: datetime, date, author, subreddit, created_utc, score, controversiality, body
-- (Link to dataset)[https://www.kaggle.com/datasets/jerryfanelli/reddit-comments-containing-bitcoin-2009-to-2019]
+- [Link to dataset](https://www.kaggle.com/datasets/jerryfanelli/reddit-comments-containing-bitcoin-2009-to-2019)
 - Helper function to load dataset:
 ```python
 def load_reddit_comments(columns, csv_path):

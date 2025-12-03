@@ -44,6 +44,7 @@ def load_btc(csv_path):
 
     return df
 
+
 def load_data_sentiment(csv_path):
     schema = {
         "timestamp": pl.Datetime,
@@ -63,6 +64,8 @@ def load_data_sentiment(csv_path):
         .sort("timestamp")  # ensure time order
     )
     return df
+
+
 def load_btc_2018_2019(csv_path, part=None):
     """
     Load BTC OHLCV CSV data using Polars, ensure chronological order,
@@ -125,6 +128,24 @@ def load_btc_2018_2019(csv_path, part=None):
     )
 
     return df_part
+
+
+def load_google_search(csv_path):
+    schema = {
+        "date": pl.Datetime,   # Unix timestamp in seconds
+        "Scale_['bitcoin']": pl.Float64
+    }
+
+    df = pl.read_csv(
+        csv_path,
+        schema=schema,
+        has_header=True,
+        separator=","
+    )
+
+    return df
+
+
 if __name__ == "__main__":
     df1 = load_btc("data/btc_training.csv")
 

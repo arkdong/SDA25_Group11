@@ -95,3 +95,11 @@ def load_reddit_comments(columns, csv_path):
 	- `git rebase main`: rebase the feature branch on top of the updated main
 4. Continue coding and push to main as previous
 	- `git push`
+ - 
+
+
+ ## RQ2
+
+`rq2.ipynb` walks through our sentiment–Bitcoin analysis: loading the merged minute-level datasets, summarizing sentiment by time, correlating sentiment with returns/volatility/volume/price, and fitting simple regressions/visualizations to show the (near-zero) relationships.
+
+Precomputed data files are included: `train1_merged`, `train2_merged`, `train3_merged`, `train4_merged`, `validate_merged`, `test_merged`. Each file already merges Reddit sentiment scores with Bitcoin market data at the minute level. These took significant time to build, so best to use them as a starting point rather than re-running the full preprocessing/sentiment pipeline. If you need to replicate from raw sources, you can, but expect long runtimes, otherwise, load the merged files directly for analysis or modeling.

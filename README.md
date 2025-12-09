@@ -29,7 +29,7 @@ There two helper function:
 - `load_btc_2018_2019(csv_path, part=None)`: load the specific part of the Bitcoin data.
 
 #### Translation and Sentiment Score
-To perform sentiment analysis with Bitcoin price, we need to first translate all tweets and reddit messages into English, and then give a sentiment score. Due to the large size of the datasets, **890K Reddit posts** and **1.2M Tweets**, we uses parallelised code that runs on A100 GPU using Google Colab. [Link to the code](https://www.kaggle.com/datasets/mczielinski/bitcoin-historical-data)
+To perform sentiment analysis with Bitcoin price, we need to first translate all tweets and reddit messages into English, and then give a sentiment score. Due to the large size of the datasets, **890K Reddit posts** and **1.2M Tweets**, we uses parallelised code that runs on A100 GPU using Google Colab. [Link to the code](notebook/translate_sentiment.ipynb)
 
 For translation we relies on the free model **Helsinki-NLP/opus-mt-mul-en**, which limits the input to 512 tokens, each message must be chunked into smaller segments before translation. This significantly slows down the overall process, even when using a GPU. As a result, the translation took approximately **3 hours** for the 890K Reddit messages and around **18 hours** for the 1.2M Tweets.
 

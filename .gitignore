@@ -6,3 +6,5 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 /.idea
+data/sentiment_5min.csv
+data/btc_2018_2019.csv

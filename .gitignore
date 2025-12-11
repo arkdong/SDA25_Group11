@@ -8,3 +8,4 @@ __pycache__/
 /.idea
 data/sentiment_5min.csv
 data/btc_2018_2019.csv
+data/tweets_2018_2019 2.csv

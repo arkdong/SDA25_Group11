@@ -4,7 +4,9 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 
+# Normalize sentiment data to date/score columns.
 def prepare(df: pl.DataFrame):
+    # Keep timestamp + sentiment and derive daily date/score columns.
     return (
         df.select(["timestamp", "sentiment_score"])
              .drop_nulls("sentiment_score")
@@ -14,10 +16,13 @@ def prepare(df: pl.DataFrame):
          )
     )
 
+# Print basic sentiment stats and cross-platform correlation.
 def print_basic_stats(df_tweets, df_reddit):
+    # Prepare daily sentiment frames.
     tw = prepare(df_tweets)
     rd = prepare(df_reddit)
 
+    # Descriptive statistics for both platforms.
     stats = pd.DataFrame({
         "Twitter": tw["score"].to_pandas().describe(),
         "Reddit": rd["score"].to_pandas().describe()
@@ -27,19 +32,22 @@ def print_basic_stats(df_tweets, df_reddit):
     print(stats)
     print("\nDifference in means:", stats.loc["mean", "Twitter"] - stats.loc["mean", "Reddit"])
 
+    # Daily means to compare trends.
     tw_pd = tw.group_by("date").agg(pl.col("score").mean().alias("mean")).sort("date").to_pandas()
     rd_pd = rd.group_by("date").agg(pl.col("score").mean().alias("mean")).sort("date").to_pandas()
 
-    # Merge dates for correlation
+    # Merge dates for correlation.
     merged = tw_pd.merge(rd_pd, on="date", suffixes=("_twitter", "_reddit"))
 
+    # Correlation of daily means across platforms.
     corr = merged["mean_twitter"].corr(merged["mean_reddit"])
     print("\n===== DAILY CORRELATION =====")
     print(f"Correlation between Twitter and Reddit daily sentiment: {corr:.4f}")
 
 
+# Apply a consistent matplotlib style and layout.
 def apply_common_style(title: str, xlabel: str = "Date", ylabel: str = ""):
-    # General Style for Matplotlib
+    # Shared styling for charts.
     plt.title(title, fontsize=10)
     plt.xlabel(xlabel, fontsize=8)
     plt.ylabel(ylabel, fontsize=8)
@@ -51,8 +59,9 @@ def apply_common_style(title: str, xlabel: str = "Date", ylabel: str = ""):
     plt.tight_layout()
     plt.show()
 
+# Plot KDE distributions for raw sentiment scores.
 def plot_sentiment_distributions(df_tweets: pl.DataFrame, df_reddit: pl.DataFrame):
-    """Basic plots for raw tweets & reddit sentiment."""
+    # Convert to pandas for seaborn.
     tw_pd = prepare(df_tweets).to_pandas()
     rd_pd = prepare(df_reddit).to_pandas()
     plt.figure(figsize=(14, 4))
@@ -66,9 +75,11 @@ def plot_sentiment_distributions(df_tweets: pl.DataFrame, df_reddit: pl.DataFram
     )
 
 def plot_daily_means(df_tweets: pl.DataFrame, df_reddit: pl.DataFrame):
+    # Compute daily mean sentiment per platform.
     tw_pd = prepare(df_tweets).group_by("date").agg(pl.col("score").mean().alias("mean_score")).sort("date").to_pandas()
     rd_pd = prepare(df_reddit).group_by("date").agg(pl.col("score").mean().alias("mean_score")).sort("date").to_pandas()
 
+    # Plot time series of daily means.
     plt.figure(figsize=(14, 4))
     plt.plot(tw_pd["date"], tw_pd["mean_score"], linewidth=1, alpha=0.8, label="Twitter mean")
     plt.plot(rd_pd["date"], rd_pd["mean_score"], linewidth=1, alpha=0.8, label="Reddit mean")
@@ -79,7 +90,9 @@ def plot_daily_means(df_tweets: pl.DataFrame, df_reddit: pl.DataFrame):
         ylabel="Mean sentiment",
     )
 
+# Compare sentiment distributions with boxplots.
 def plot_boxplots(df_tweets, df_reddit):
+    # Extract score arrays.
     tw = prepare(df_tweets).to_pandas()["score"]
     rd = prepare(df_reddit).to_pandas()["score"]
 
@@ -87,7 +100,7 @@ def plot_boxplots(df_tweets, df_reddit):
 
     plt.figure(figsize=(6, 6))
 
-    # Create boxplot
+    # Create boxplot.
     bp = plt.boxplot(
         data,
         tick_labels=["Twitter", "Reddit"],
@@ -100,7 +113,7 @@ def plot_boxplots(df_tweets, df_reddit):
         label=["Twitter", "Reddit"]
     )
 
-    # Color the boxes
+    # Color the boxes.
     colors = ["#1DA1F2", "#FF4500"]  # Twitter blue, Reddit orange
     for patch, color in zip(bp['boxes'], colors):
         patch.set_facecolor(color)
@@ -112,14 +125,16 @@ def plot_boxplots(df_tweets, df_reddit):
         ylabel="Sentiment Score",
     )
 
+# Scatter daily mean sentiment between platforms.
 def plot_scatter(df_tweets, df_reddit):
+    # Compute daily means.
     tw_pd = prepare(df_tweets).group_by("date").agg(pl.col("score").mean().alias("mean")).sort("date").to_pandas()
     rd_pd = prepare(df_reddit).group_by("date").agg(pl.col("score").mean().alias("mean")).sort("date").to_pandas()
 
-    # Merge dates
+    # Merge dates.
     merged = tw_pd.merge(rd_pd, on="date", suffixes=("_twitter", "_reddit"))
 
-    # Scatter plot
+    # Scatter plot.
     plt.figure(figsize=(6, 6))
     sns.scatterplot(data=merged, x="mean_twitter", y="mean_reddit", s=40, alpha=0.8,label="tw and rd")
     apply_common_style(
@@ -128,13 +143,13 @@ def plot_scatter(df_tweets, df_reddit):
         ylabel="Reddit daily mean",
     )
 
+# Plot daily disagreement metrics over time.
 def plot_daily_sentiment_disagreement(sent_daily: pl.DataFrame, figsize=None):
-    """
-    Plots D_mad, D_gap, D_var, D_std, D_iqr over time
-    """
+    # Sort to ensure temporal order.
     df = sent_daily.sort("date").to_pandas()
     if figsize is None:
         figsize = (12,4)
+    # Plot daily disagreement series.
     plt.figure(figsize=figsize)
     plt.plot(df["date"], df["D_mad"], linewidth=1, alpha=0.8, label="D_mad")
     plt.plot(df["date"], df["D_gap"], linewidth=1, alpha=0.8, label="D_gap")
@@ -148,13 +163,13 @@ def plot_daily_sentiment_disagreement(sent_daily: pl.DataFrame, figsize=None):
         ylabel="Value",
     )
 
+# Plot 7-day rolling disagreement metrics over time.
 def plot_7d_sentiment_disagreement(sent_daily: pl.DataFrame, figsize=None):
-    """
-    Plots D_mad, D_gap, D_var, D_std, D_iqr over time
-    """
+    # Sort to ensure temporal order.
     df = sent_daily.sort("date").to_pandas()
     if figsize is None:
         figsize = (12,4)
+    # Plot rolling disagreement series.
     plt.figure(figsize=figsize)
     plt.plot(df["date"], df["D_mad_7d"], linewidth=1, alpha=0.8, label="D_mad_7d")
     plt.plot(df["date"], df["D_gap_7d"], linewidth=1, alpha=0.8, label="D_gap_7d")
@@ -168,13 +183,16 @@ def plot_7d_sentiment_disagreement(sent_daily: pl.DataFrame, figsize=None):
         ylabel="Value",
     )
 
+# Plot z-scored daily disagreement features.
 def plot_disagreement_normalized(sent_daily: pl.DataFrame, figsize=None):
+    # Compute z-scores for daily metrics.
     df = sent_daily.sort("date").to_pandas()
     features = ["D_mad", "D_gap", "D_var", "D_std", "D_iqr"]
     normalized = (df[features] - df[features].mean()) / df[features].std()
 
     if figsize is None:
         figsize = (12,4)
+    # Plot normalized series.
     plt.figure(figsize=figsize)
     for f in features:
         plt.plot(df["date"], normalized[f], label=f, alpha=0.8)
@@ -185,13 +203,16 @@ def plot_disagreement_normalized(sent_daily: pl.DataFrame, figsize=None):
         ylabel="Normalized Value"
     )
 
+# Plot z-scored 7-day rolling disagreement features.
 def plot_7d_disagreement_normalized(sent_daily: pl.DataFrame, figsize=None):
+    # Compute z-scores for rolling metrics.
     df = sent_daily.sort("date").to_pandas()
     features = ["D_mad_7d", "D_gap_7d", "D_var_7d", "D_std_7d", "D_iqr_7d"]
     normalized = (df[features] - df[features].mean()) / df[features].std()
 
     if figsize is None:
         figsize = (12,4)
+    # Plot normalized series.
     plt.figure(figsize=figsize)
     for f in features:
         plt.plot(df["date"], normalized[f], label=f, alpha=0.8)
@@ -202,28 +223,31 @@ def plot_7d_disagreement_normalized(sent_daily: pl.DataFrame, figsize=None):
         ylabel="Normalized Value"
     )
 
+# Plot raw 1-minute BTC close and volume series.
 def plot_raw_btc_1m(df_btc: pl.DataFrame, ts_col="timestamp", close_col="close", vol_col="volume"):
-    """Basic plots for raw 1m BTC: close price + volume."""
+    # Select and clean required columns.
     btc = (
         df_btc.select([ts_col, close_col, vol_col])
               .drop_nulls(close_col)
               .sort(ts_col)
     )
 
+    # Convert to pandas for plotting.
     btc_pd = btc.to_pandas()
 
-    # Price
+    # Price.
     plt.figure(figsize=(14, 6))
     plt.plot(btc_pd[ts_col], btc_pd[close_col], linewidth=1, alpha=0.8, label="BTC Close Price")
     apply_common_style("BTC 1-Minute Close Price", xlabel="Date", ylabel="Price (USD)")
 
-    # Volume
+    # Volume.
     plt.figure(figsize=(14, 6))
     plt.plot(btc_pd[ts_col], btc_pd[vol_col], linewidth=1, alpha=0.8, label="BTC Volume")
     apply_common_style("BTC 1-Minute Volume", xlabel="Date", ylabel="Volume")
 
+# Plot daily BTC volatility measures.
 def plot_btc_daily_instability(btc_daily: pl.DataFrame):
-    """Plots daily rv, parkinson, and absret_daily with unified style."""
+    # Sort and convert for plotting.
     df = btc_daily.sort("date").to_pandas()
     plt.figure(figsize=(14, 6))
     plt.plot(df["date"], df["rv"], linewidth=1, alpha=0.8, label="BTC RV")
@@ -231,17 +255,15 @@ def plot_btc_daily_instability(btc_daily: pl.DataFrame):
     plt.plot(df["date"], df["absret_daily"], linewidth=1, alpha=0.8, label="BTC absret")
     apply_common_style("Daily Price Instability", xlabel="Date", ylabel="|logret|")
 
+# Plot target series and its lag over time.
 def plot_model_target_timeseries(model_train: pl.DataFrame, base_target: str = "rv"):
-    """
-    Plots y_t and target_lag1 over time.
-    base_target is the original target_col used in build_daily_model_df
-    (e.g. "rv" or "parkinson").
-    """
+    # Sort and prepare the timeline.
     df = model_train.sort("date").to_pandas()
 
     plt.figure(figsize=(14, 6))
     plt.plot(df["date"], df["y"], linewidth=1, alpha=0.8, label="y (target today)")
     lag_col = f"{base_target}_lag1"
+    # Plot lagged target if present.
     if lag_col in df.columns:
         plt.plot(df["date"], df[lag_col], linewidth=1, alpha=0.8, label=f"{lag_col}")
 
@@ -252,10 +274,9 @@ def plot_model_target_timeseries(model_train: pl.DataFrame, base_target: str = "
     )
 
 
+# Plot scatter of target vs each predictor.
 def plot_model_feature_scatter(model_train: pl.DataFrame, base_target: str = "rv"):
-    """
-    Scatter plots of y vs each predictor
-    """
+    # Convert to pandas for plotting.
     df = model_train.to_pandas()
 
     features = ["D_mad_lag1",
@@ -283,6 +304,7 @@ def plot_model_feature_scatter(model_train: pl.DataFrame, base_target: str = "rv
         f"{base_target}_lag1": f"y vs {base_target}_lag1 (target lag-1)",
     }
 
+    # Draw a scatter for each available feature.
     for feat in features:
         if feat not in df.columns:
             continue
@@ -295,20 +317,18 @@ def plot_model_feature_scatter(model_train: pl.DataFrame, base_target: str = "rv
             ylabel="y (target)",
         )
 
+# Plot correlation heatmap for target and predictors.
 def plot_model_correlations(model_train: pl.DataFrame, base_target: str = "rv"):
-    """
-    Correlation matrix between y and main predictors,
-    visualized as a heatmap.
-    """
     cols = ["y", "D_mad_lag1", "D_gap_lag1", "D_var_lag1", "D_std_lag1", "D_iqr_lag1",
             "D_mad_7d", "D_gap_7d", "D_var_7d", "D_std_7d", "D_iqr_7d",
             f"{base_target}_lag1"]
-    # keep only existing columns
+    # Keep only existing columns.
     cols = [c for c in cols if c in model_train.columns]
 
     df = model_train.select(cols).to_pandas()
     corr = df.corr()
 
+    # Draw heatmap.
     plt.figure(figsize=(5, 4))
     im = plt.imshow(corr.values, interpolation="nearest", aspect="auto")
     plt.colorbar(im, fraction=0.046, pad=0.04)
@@ -328,6 +348,7 @@ def plot_best_models_vs_baseline(
     baseline_name="Baseline_AR1",
     use_raw=True
 ):
+    # Get dates and select actual series.
     dates = validation_df["date"].to_list()
     if use_raw:
         y = results[baseline_name]["y_validation_raw"]
@@ -336,13 +357,12 @@ def plot_best_models_vs_baseline(
         y = results[baseline_name]["y_validation"]
         ylabel = f"log(Volatility ({target}))"
 
+    # Plot actual series and best model predictions.
     plt.figure(figsize=(12, 4))
     plt.plot(dates, y, label=f"Actual ({baseline_name})")
 
     unique_values = set(best_models.values())
     for item in unique_values:
-        # print(item)
-        # print(results[item])
         yhat = results[item]["predit_validation_raw"]
         plt.plot(dates, yhat, label=item)
 
@@ -358,6 +378,7 @@ def plot_all_models_vs_actual(
     results: dict,
     target: str
 ):
+    # Collect dates and actual series.
     dates = validation_df["date"].to_list()
     # actual series
     any_key = next(iter(results))
@@ -384,7 +405,9 @@ def plot_all_models_vs_actual(
     plt.tight_layout()
     plt.show()
 
+# Plot normal-approximation rejection regions for a test stat.
 def plot_null_test_normal(t_stat, alpha=0.05, alternative="greater", title="Hypothesis test (normal approx)"):
+    # Build normal curve and critical values.
     x = np.linspace(-4, 4, 1000)
     pdf = (1/np.sqrt(2*np.pi)) * np.exp(-0.5 * x**2)
     from scipy.stats import norm

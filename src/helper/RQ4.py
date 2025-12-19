@@ -2,9 +2,6 @@
 import helper.data as data
 import helper.RQ4_EDA as EDA
 
-# import data
-# import RQ4_EDA as EDA
-
 import polars as pl
 import pandas as pd
 import math
@@ -16,7 +13,9 @@ import seaborn as sns
 
 
 
+# Normalize sentiment data to date/score columns.
 def prepare(df: pl.DataFrame):
+    # Keep timestamp + sentiment and derive daily date/score columns.
     return (
         df.select(["timestamp", "sentiment_score"])
              .drop_nulls("sentiment_score")
@@ -27,21 +26,20 @@ def prepare(df: pl.DataFrame):
     )
 
 
+# Compute per-day sentiment summary stats for a platform.
 def daily_stats(df: pl.DataFrame, prefix: str) -> pl.DataFrame:
-    """
-    Return per-day stats for one platform.
-    Output columns:
-      ['date', 'reddit_mean', 'reddit_median', 'reddit_mad', 'reddit_var',
-       'reddit_std', 'reddit_iqr', 'reddit_n']
-    """
+    # Base daily scores with nulls removed.
     base = df.select(["date", "score"]).drop_nulls(["score"])
 
+    # Daily median and absolute deviation.
     df2 = base.with_columns(pl.col("score").median().over("date").alias("med"))
     df2 = df2.with_columns((pl.col("score") - pl.col("med")).abs().alias("abs_dev"))
 
+    # Quartiles for IQR.
     q75 = pl.col("score").quantile(0.75, interpolation="nearest")
     q25 = pl.col("score").quantile(0.25, interpolation="nearest")
 
+    # Aggregate daily summary metrics.
     return (
         df2.group_by("date")
            .agg([
@@ -57,35 +55,32 @@ def daily_stats(df: pl.DataFrame, prefix: str) -> pl.DataFrame:
     )
 
 
+# Join platform stats and add absolute mean-gap column.
 def mean_gap(tw: pl.DataFrame, rd: pl.DataFrame) -> pl.DataFrame:
-    """
-    Compute and return Twitter–Reddit mean gap:
-      D_gap = |twitter_mean - reddit_mean|
-    Keeps all columns from both stats tables (outer join on date).
-    """
+    # Outer-join on date and add absolute mean gap.
     return (tw.join(rd, on="date", how="full")
               .with_columns((pl.col("twitter_mean") - pl.col("reddit_mean")).abs().alias("D_gap"))
               .sort("date")
     )
 
 
+# Compute daily dispersion metrics over all posts combined.
 def dispersion_all(tw: pl.DataFrame, rd: pl.DataFrame) -> pl.DataFrame:
-    """
-    Disagreement across ALL posts (Twitter + Reddit) per day:
-      - D_mad, D_var, D_std, D_iqr
-      - all_mean, all_n
-    """
+    # Combine scores across platforms per day.
     all_scores = pl.concat(
         [tw.select(["date", "score"]), rd.select(["date", "score"])],
         how="vertical"
     ).drop_nulls(["score"])
 
+    # Daily median and absolute deviations.
     df2 = all_scores.with_columns(pl.col("score").median().over("date").alias("med"))
     df2 = df2.with_columns((pl.col("score") - pl.col("med")).abs().alias("abs_dev"))
 
+    # Quartiles for IQR.
     q75 = pl.col("score").quantile(0.75, interpolation="nearest")
     q25 = pl.col("score").quantile(0.25, interpolation="nearest")
 
+    # Aggregate dispersion metrics for all posts.
     return (
         df2.group_by("date")
            .agg([
@@ -100,16 +95,14 @@ def dispersion_all(tw: pl.DataFrame, rd: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+# Add 7-day rolling means for disagreement metrics.
 def add_weekly_rolling_disagreement(df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Add 7-day rolling disagreement features:
-      D_mad_7d, D_var_7d, D_std_7d, D_iqr_7d, D_gap_7d
-    using a rolling mean over the last 7 days (including today).
-    """
+    # Ensure date order for rolling windows.
     df = df.sort("date")
 
     disagreement_cols = ["D_mad", "D_var", "D_std", "D_iqr", "D_gap"]
 
+    # Add rolling 7-day means for each disagreement feature.
     return df.with_columns(
         [
             pl.col(col)
@@ -120,53 +113,44 @@ def add_weekly_rolling_disagreement(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+# Build daily sentiment disagreement features across platforms.
 def sentiment_disagreement_daily(reddit_df: pl.DataFrame, tweets_df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Returns per-day sentiment features including:
-      - Platform stats (mean/median/mad/var/std/iqr/n)
-      - D_gap (abs mean gap)
-      - All-post dispersion: D_mad, D_var, D_std, D_iqr
-    """
 
+    # Normalize inputs to date/score.
     rd = prepare(reddit_df)
     tw = prepare(tweets_df)
 
+    # Per-platform daily summaries.
     rd_stats = daily_stats(rd, "reddit_")
     tw_stats = daily_stats(tw, "twitter_")
 
-    # Twitter-Reddit mean gap (absolute)
+    # Mean gap and combined dispersion.
     gap_df = mean_gap(tw=tw_stats, rd=rd_stats)
 
-    # Combined MAD and Disagreement across ALL posts (Twitter + Reddit)
     disp_df = dispersion_all(tw=tw, rd=rd)
 
+    # Merge and add rolling features.
     temp = gap_df.join(disp_df, on="date", how="left").sort("date")
     return add_weekly_rolling_disagreement(temp)
 
 
+# Aggregate 1-minute BTC data into daily instability measures.
 def btc_daily_instability_from_1m(
     btc_df: pl.DataFrame,
     ts_col: str = "timestamp",
     require_full_day: bool = True,
     full_day_bars: int = 1440,
 ) -> pl.DataFrame:
-    """
-    Computes daily price instability from 1-minute OHLCV:
-      - rv: realized volatility = sqrt(sum intraday log-return^2)
-      - parkinson: range-based daily estimator using daily high/low
-      - absret_daily: abs(close-to-close daily log return)
 
-    If require_full_day=True, keeps only days with exactly 1440 bars.
-    """
-
+    # Add date and compute intraday log returns.
     btc = (btc_df.with_columns(pl.col(ts_col).dt.date().alias("date")).sort(ts_col))
 
-    # Intraday log returns within each day (order matters)
     btc = btc.with_columns(pl.col("close").log().alias("log_close"))
     btc = btc.with_columns(
         (pl.col("log_close") - pl.col("log_close").shift(1).over("date")).alias("logret_intra")
     )
 
+    # Prepare variance components for daily aggregation.
     btc = btc.with_columns(pl.col("logret_intra").fill_null(0.0).pow(2).alias("logret2"))
     LN2 = float(math.log(2.0))
     SQRT_365 = float(math.sqrt(365.0))
@@ -189,28 +173,26 @@ def btc_daily_instability_from_1m(
            ])
     )
 
-    # daily close-to-close log return + abs return
+    # Daily close-to-close log returns.
     daily = daily.with_columns([
         (pl.col("close_d").log() - pl.col("close_d").log().shift(1)).alias("logret_daily"),
         (pl.col("close_d").log() - pl.col("close_d").log().shift(1)).abs().alias("absret_daily"),
     ])
 
+    # Optionally keep only full 1440-bar days.
     if require_full_day:
         daily = daily.filter(pl.col("n_bars") == full_day_bars)
 
     return daily
 
 
+# Assemble daily modeling table with lagged disagreement features.
 def build_daily_model_df(
     btc_daily: pl.DataFrame,
     sent_daily: pl.DataFrame,
-    target_col: str = "rv",   # rv, parkinson, absret_daily
+    target_col: str = "rv",
 ) -> pl.DataFrame:
-    """
-    Produces modeling table where day t target uses disagreement from day t-1:
-      y_t = target(t)
-      X_t includes D_mad(t-1), D_gap(t-1), D_var(t-1), D_std(t-1), D_iqr(t-1), rv(t-1)
-    """
+    # Join BTC and sentiment and build lagged predictors.
     df = (
         btc_daily.join(sent_daily, on="date", how="left")
                  .sort("date")
@@ -228,7 +210,9 @@ def build_daily_model_df(
     return df
 
 
+# Split 2018 into six equal date ranges.
 def part_bounds(part: int):
+    # Split 2018 into six equal slices and return bounds.
     year_start = datetime(2018, 1, 1)
     year_end   = datetime(2019, 1, 1)
     step = (year_end - year_start) / 6
@@ -237,11 +221,9 @@ def part_bounds(part: int):
     return slice_start, slice_end
 
 
+# Keep only days fully contained in the slice window.
 def keep_full_days_inside(df_daily: pl.DataFrame, slice_start, slice_end) -> pl.DataFrame:
-    """
-    Keep ONLY days where the entire [00:00, 24:00) interval is inside [slice_start, slice_end).
-    This avoids "split day" leakage when part boundaries cut through a day.
-    """
+    # Filter days whose full 24h window is inside the slice.
     return (
         df_daily
         .with_columns([
@@ -254,12 +236,10 @@ def keep_full_days_inside(df_daily: pl.DataFrame, slice_start, slice_end) -> pl.
     )
 
 
+# Build the full model-spec dictionary for regression runs.
 def model_combination(ar_lag_col: str):
-    """
-    Build full model-spec dictionary using the correct AR(1) lag column.
-    Example: ar_lag_col='rv_lag1', 'parkinson_lag1', or 'absret_daily_lag1'.
-    """
 
+    # Candidate disagreement feature set.
     DISAGREE_FEATURES = [
         "D_mad_lag1",
         "D_gap_lag1",
@@ -273,30 +253,29 @@ def model_combination(ar_lag_col: str):
         "D_iqr_7d",
     ]
 
-    # Build MODEL dictionary
     MODELS = {
-        "Baseline_const": [],  # intercept-only model
+        "Baseline_const": [],
     }
 
-    # 1) Single disagreement features
+    # Single-feature models.
     for f in DISAGREE_FEATURES:
         MODELS[f"D_only_{f.replace('_lag1','').upper()}"] = [f]
 
-    # 2) All combinations of disagreement features (size ≥ 2)
+    # All multi-feature combos.
     import itertools
     for k in range(2, len(DISAGREE_FEATURES) + 1):
         for combo in itertools.combinations(DISAGREE_FEATURES, k):
             name = "D_" + "_".join([c.replace("_lag1","").upper() for c in combo])
             MODELS[name] = list(combo)
 
-    # 3) Baseline AR model
+    # AR-only baseline.
     MODELS["Baseline_AR1"] = [ar_lag_col]
 
-    # 4) AR(1) + single disagreement feature
+    # AR plus single feature.
     for f in DISAGREE_FEATURES:
         MODELS[f"AR1_plus_{f.replace('_lag1','').upper()}"] = [ar_lag_col, f]
 
-    # 5) AR(1) + all disagreement combos (≥2)
+    # AR plus multi-feature combos.
     for k in range(2, len(DISAGREE_FEATURES) + 1):
         for combo in itertools.combinations(DISAGREE_FEATURES, k):
             base_name = "_".join([c.replace("_lag1","").upper() for c in combo])
@@ -305,7 +284,9 @@ def model_combination(ar_lag_col: str):
     return MODELS
 
 
+# Run selected EDA plots for sentiment and BTC data.
 def plot_EDA():
+    # Load training data and build daily frames for plotting.
     df_tweets = data.load_data_sentiment("data/tweets_training.csv")
     df_reddit = data.load_data_sentiment("data/reddit_training.csv")
     sent_train = sentiment_disagreement_daily(df_tweets, df_reddit)
@@ -313,36 +294,25 @@ def plot_EDA():
     btc_train  = btc_daily_instability_from_1m(df_btc, require_full_day=True)
     model_train_rv = build_daily_model_df(btc_train, sent_train, target_col="rv")
 
-    # Sentiment EDA
-    # EDA.plot_sentiment_distributions(df_tweets, df_reddit)
-    # EDA.plot_daily_means(df_tweets, df_reddit)
-    # EDA.plot_boxplots(df_tweets, df_reddit)
-    # EDA.plot_scatter(df_tweets, df_reddit)
-
-    # Disagreement EDA
-    # EDA.plot_daily_sentiment_disagreement(sent_train, (15, 3))
-    # EDA.plot_7d_sentiment_disagreement(sent_train, (15, 3))
-    # EDA.plot_disagreement_normalized(sent_train, (15, 3))
-    # EDA.plot_7d_disagreement_normalized(sent_train, (15, 3))
-
-    # BTC EDA
+    # Plot selected EDA figure(s).
     EDA.plot_btc_daily_instability(btc_train)
 
-    # Training Dataset EDA
-    # EDA.plot_model_feature_scatter(model_train_rv)
-    # EDA.plot_model_correlations(model_train_rv)
 
-
+# Root-mean-squared error helper.
 def rmse(y, yhat):
+    # Root-mean-squared error.
     return float(np.sqrt(np.mean((y - yhat) ** 2)))
 
 
+# Mean absolute error helper.
 def mae(y, yhat):
+    # Mean absolute error.
     return float(np.mean(np.abs(y - yhat)))
 
 
+# Build numpy design matrix with intercept.
 def design_matrix(df_pl, x_cols):
-    """Return (X, names) with intercept."""
+    # Convert selected columns to numpy and add intercept.
     n = df_pl.height
     if len(x_cols) == 0:
         return np.ones((n, 1)), ["const"]
@@ -351,8 +321,9 @@ def design_matrix(df_pl, x_cols):
     return X, ["const"] + x_cols
 
 
+# Fit OLS on train and predict on validation, with optional log scale.
 def fit_predict(training_df, validation_df, x_cols, y_col="y", log_y=True, hac_lags=7):
-    """Fit OLS on train, predict val. Returns result + arrays in log and raw scale."""
+    # Extract response arrays and apply log if requested.
     y_training_raw = training_df[y_col].to_numpy()
     y_validation_raw = validation_df[y_col].to_numpy()
 
@@ -363,12 +334,14 @@ def fit_predict(training_df, validation_df, x_cols, y_col="y", log_y=True, hac_l
         y_training = y_training_raw
         y_validation = y_validation_raw
 
+    # Fit OLS and predict on validation.
     X_training, names = design_matrix(training_df, x_cols)
     X_validation, _ = design_matrix(validation_df, x_cols)
 
     res = sm.OLS(y_training, X_training).fit(cov_type="HAC", cov_kwds={"maxlags": hac_lags})
     predit_validation = res.predict(X_validation)
 
+    # Convert predictions back to raw scale.
     if log_y:
         predite_validation_raw = np.exp(predit_validation) - 1e-12
     else:
@@ -385,10 +358,10 @@ def fit_predict(training_df, validation_df, x_cols, y_col="y", log_y=True, hac_l
     }
 
 
+# Train a suite of models and collect validation metrics.
 def training_model(training_df, validation_df, ar_lag_col):
-    # Define your baseline + augmented specs
+    # Fit each model spec and track validation metrics.
     MODELS = model_combination(ar_lag_col)
-    # Fit all models (train) and evaluate on validation
     results = {}
     metrics = []
 
@@ -405,11 +378,9 @@ def training_model(training_df, validation_df, ar_lag_col):
     return metrics, results
 
 
+# Print and return best model names by metric.
 def report_best_models(metrics):
-    """
-    Print the best models for each evaluation metric and return a dict
-    mapping metric-key -> best-model-name.
-    """
+    # Compare metrics and report best model per criterion.
     criteria = {
         "rmse_raw": "RMSE (raw scale)",
         "rmse_log": "RMSE (log scale)",
@@ -429,14 +400,14 @@ def report_best_models(metrics):
     return best_models
 
 
+# Prepare train/validation slices for a target metric.
 def training_process(reddit_1to5, tweets_1to5, btc_1to5, target):
-    # Daily sentiment features (D_mad, D_gap)
+    # Build daily sentiment and BTC frames.
     sent_1to5 = sentiment_disagreement_daily(reddit_1to5, tweets_1to5)
 
-    # Daily BTC instability from 1m bars (rv etc.)
     btc_daily_1to5 = btc_daily_instability_from_1m(btc_1to5, require_full_day=True)
 
-    # Join + lag features; y = today's rv
+    # Create modeling table and slice into train/val.
     model_1to5_rv = build_daily_model_df(btc_daily_1to5, sent_1to5, target_col=target)
     train_start, _        = part_bounds(1)
     _, train_end          = part_bounds(4)
@@ -445,20 +416,17 @@ def training_process(reddit_1to5, tweets_1to5, btc_1to5, target):
     train_df = keep_full_days_inside(model_1to5_rv, train_start, train_end)
     val_df   = keep_full_days_inside(model_1to5_rv, val_start, val_end)
     return train_df, val_df
-    # rv_metrics, rv_result = training_model(rv_train_df, rv_val_df, "rv_lag1")
-    # rv_best_models = report_best_models(rv_metrics)
-
-    # EDA.plot_best_models_vs_baseline(rv_val_df, rv_result, rv_best_models, "rv")
-    # EDA.plot_all_models_vs_actual(rv_val_df, rv_result, "rv")
-    # return rv_result
 
 
+# Format p-values with compact precision.
 def fmt_p(p):
-    # nice p formatting
+    # Compact p-value format for reports.
     return f"{p:.2e}" if p < 1e-4 else f"{p:.4f}"
 
 
+# Build result tables and display-friendly formatting.
 def results_table(*outs, model=None):
+    # Assemble results into a DataFrame plus display formatting.
     rows = []
     for o in outs:
         rows.append({
@@ -472,7 +440,6 @@ def results_table(*outs, model=None):
         })
     df = pd.DataFrame(rows)
 
-    # formatting
     df_disp = df.copy()
     df_disp["beta"] = df_disp["beta"].map(lambda x: f"{x:.4f}")
     df_disp["t"] = df_disp["t"].map(lambda x: f"{x:.3f}")
@@ -482,17 +449,13 @@ def results_table(*outs, model=None):
     return df, df_disp
 
 
+# Run a coefficient hypothesis test and return stats.
 def coef_test(res, names, term, alpha=0.05, alternative="greater"):
-    """
-    alternative:
-      - "two-sided": H1 beta != 0
-      - "greater"  : H1 beta > 0
-      - "less"     : H1 beta < 0
-    """
+    # Compute one- or two-sided p-value and decision.
     idx = names.index(term)
     beta = float(res.params[idx])
     t = float(res.tvalues[idx])
-    p2 = float(res.pvalues[idx])  # two-sided
+    p2 = float(res.pvalues[idx])
 
     if alternative == "two-sided":
         p = p2
@@ -508,7 +471,9 @@ def coef_test(res, names, term, alpha=0.05, alternative="greater"):
     return {"term": term, "beta": beta, "t": t, "p": float(p), "alpha": alpha, "reject_H0": bool(reject)}
 
 
+# Run hypothesis tests for selected models and plot results.
 def hypothesis_test(result):
+    # Select models, test key coefficients, and plot distributions.
     chosen1 = result["AR1_plus_D_GAP_D_MAD_7D_D_GAP_7D"]
     out1_1 = coef_test(chosen1["res"], chosen1["names"], "D_mad_7d", alpha=0.05, alternative="greater")
     out1_2 = coef_test(chosen1["res"], chosen1["names"], "D_gap_7d", alpha=0.05, alternative="greater")
@@ -550,77 +515,6 @@ def hypothesis_test(result):
         title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_gap_7d (AR1_plus_D_GAP_D_MAD_7D_D_GAP_7D)"
     )
 
-    # EDA.plot_null_test_normal(
-    #     out1_3["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_gap_lag1 (AR1_plus_D_GAP_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out2_1["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_std_lag1 (AR1_plus_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out2_2["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_iqr_lag1 (AR1_plus_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out2_3["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_mad_7d (AR1_plus_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out2_4["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_gap_7d (AR1_plus_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out3_1["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_var_lag1 (AR1_plus_D_VAR_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out3_2["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_std_lag1 (AR1_plus_D_VAR_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out3_3["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_mad_7d (AR1_plus_D_VAR_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out3_4["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_gap_7d (AR1_plus_D_VAR_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-    # EDA.plot_null_test_normal(
-    #     out3_5["t"],
-    #     alpha=0.05,
-    #     alternative="greater",
-    #     title=r"$H_0$: $\beta=0$ vs $H_1$: $\beta>0$ for D_iqr_lag1 (AR1_plus_D_VAR_D_STD_D_IQR_D_MAD_7D_D_GAP_7D)"
-    # )
-
-
 if __name__ ==  "__main__":
     tweets_1to4 = data.load_data_sentiment("data/tweets_training.csv")
     tweets_5 = data.load_data_sentiment("data/sentiment/tweets_5_sent.csv")
@@ -639,6 +533,3 @@ if __name__ ==  "__main__":
         btc_1to5=btc_1to5,
         target="rv"
         )
-    # plot_EDA()
-    # result = training()
-    # hypothesis_test(result)

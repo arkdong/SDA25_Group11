@@ -145,7 +145,6 @@ def load_google_search(csv_path):
 
     return df
 
-
 if __name__ == "__main__":
     df1 = load_btc("data/btc_training.csv")
 

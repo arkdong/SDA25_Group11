@@ -1,0 +1,39 @@
+AI statement: For RQ1,
+I used generative AI in a limited and focused way, mainly for debugging code
+and for clarifying the interpretation of OLS regression. For example, AI was
+used to help identify and fix errors related to data merging, lag construction,
+and model setup. It was also used to double-check how to interpret regression
+outputs, including coefficients, p-values, and R². I manually checked all
+outputs and ensured that the results were statistically and conceptually
+consistent. Overall, AI served only as a support tool during the coding process,
+and I take full responsibility for all code, methods, and conclusions
+in this project.
+
+AI Use Statement (RQ3)
+ChatGPT was used to improve the readability of any text that appears in the
+notebook, including reformatting content and correcting spelling errors.
+
+The gen AI was also used to support coding tasks by identifying existing
+functions relevant to the intended implementation and by assisting in debugging
+errors. To do the latter the code snippets and the output were provided to
+ChatGPT to diagnose issues and propose corrections.
+
+All AI-generated suggestions were personally reviewed. This included reviewing
+official documentation, testing the behavior of the code in practice, and
+examining the code changes recommended by the AI before incorporating them
+into the final work.
+
+RQ4 and RQ5:
+ChatGPT 5.2 Pro is used though out the project. Based on my own working
+implementation of code and ideas, I used AI to:
+- Simplyfy coding structure to cleaner code
+- test with edge function and find bugs
+- apply styles to plot which otherwise i need to do manually for 20 plots
+- Find better method or library to use to speed up and having better quality
+without change the logical steps for my implementations
+- Implement unneccarry function for this project for example parallel code to
+translate and evaluate sentimetn score which otherwise would take 2 days to run
+
+Presentation
+- I often have my words and sentence written and exceeding the time constrain
+I use AI to help e compress the sentences into short and concises speach notes.

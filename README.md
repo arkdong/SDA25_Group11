@@ -2,7 +2,6 @@
 
 Crypto price prediction and analysis using sentiment: study on whether public sentiment predicts cryptocurrency volatility or price movements.
 
-
 **RQ1**: Does Twitter sentiment about Bitcoin have predictive power for short-term (next-day) price movements during 2018–2019?
 - Hypothesis: Higher Twitter sentiment is associated with higher next-day Bitcoin returns.
 
@@ -13,12 +12,13 @@ Crypto price prediction and analysis using sentiment: study on whether public se
 **RQ3**: Does Google search activity related to Bitcoin predict short-term market momentum or volatility?
 - Hypothesis: Spikes in “Bitcoin” Google search volume are followed by increase in bitcoin volatility within 24 hours
 
-**RQ4**: Does sentiment disagreement affect price stability?
+**RQ4**: Does daily sentiment disagreement predict Bitcoin price instability for the next day.
 - Hypothesis: Higher sentiment dispersion, i.e. many positive and negative post on the same day, predict unstable Bitcoin price movements
 
 **RQ5**: Can sentiment features like Twitter, Reddit, Google Trends, and Disagreement improve prediction of next-day Bitcoin returns compared to a baseline price-only model 
 - Hypothesis: A predictive model including sentiment features achieves significantly better accuracy than a model using only past Bitcoin prices
 
+## Data and Preparation
 #### Datasets
 For all datasets we limit the timeframe to 1 January 2018 to 1 January 2019, the datasets we are using for this project are:
 - Bitcoin tweets - 16M tweets, [Link to dataset](https://www.kaggle.com/datasets/alaix14/bitcoin-tweets-20160101-to-20190329/data)
@@ -35,13 +35,12 @@ For translation we relies on the free model **Helsinki-NLP/opus-mt-mul-en**, whi
 
 For the large-scale sentiment analysis on translated Reddit and Twitter datasets we are using the **CardiffNLP Twitter RoBERTa sentiment model**.
 
+## Repo Structure
+- data: contain all the data files that used for all analysis and research questions
+- graphs: contain all visualization and graphs generated for the presentation
+- notebook: contain all notebook for RQ 1-5, with detail steps and explanations of each research questions
+- src: contain all the helper functions (for RQ4 and RQ5, the main implementation of code contain in the helper module not in the notebook)
 
-
-## RQ2
-
-`rq2.ipynb` walks through our sentiment–Bitcoin analysis: loading the merged minute-level datasets, summarizing sentiment by time, correlating sentiment with returns/volatility/volume/price, and fitting simple regressions/visualizations to show the (near-zero) relationships.
-
-Precomputed data files are included: `train1_merged`, `train2_merged`, `train3_merged`, `train4_merged`, `validate_merged`, `test_merged`. Each file already merges Reddit sentiment scores with Bitcoin market data at the minute level. These took significant time to build, so best to use them as a starting point rather than re-running the full preprocessing/sentiment pipeline. If you need to replicate from raw sources, you can, but expect long runtimes, otherwise, load the merged files directly for analysis or modeling.
 
 ## Git Workflow
 
